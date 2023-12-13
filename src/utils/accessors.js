@@ -19,5 +19,3 @@ export function accessor(data, field) {
 
   return value
 }
-
-export const wrapAccessor = acc => data => accessor(data, acc)

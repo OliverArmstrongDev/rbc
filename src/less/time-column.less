@@ -1,5 +1,6 @@
 @import './variables.less';
 
+
 .rbc-time-column {
   display: flex;
   flex-direction: column;
@@ -9,6 +10,7 @@
     flex: 1;
   }
 }
+
 
 .rbc-timeslot-group {
   border-bottom: 1px solid @cell-border;
@@ -24,6 +26,8 @@
 
 .rbc-label {
   padding: 0 5px;
+  position: relative;
+  top: 3.5px;
 }
 
 .rbc-day-slot {
@@ -33,11 +37,10 @@
     bottom: 0;
     left: 0;
     position: absolute;
-    right: 0;
-    margin-right: 10px;
+    right: 10px;
     top: 0;
 
-    &.rbc-rtl {
+    &.rbc-is-rtl {
       left: 10px;
       right: 0;
     }
@@ -52,21 +55,6 @@
     align-items: flex-start;
     overflow: hidden;
     position: absolute;
-  }
-
-  .rbc-background-event {
-    border: none;
-    box-shadow: none;
-    margin: 0;
-    padding: @event-padding;
-    background-color: @background-event-bg;
-    background-color: red;
-    border-radius: 0;
-    color: @event-color;
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    opacity: 0.5;
   }
 
   .rbc-event-label {
@@ -87,48 +75,6 @@
   .rbc-time-slot {
     border-top: 1px solid lighten(@cell-border, 10%);
   }
-}
-
-.rbc-time-view-resources {
-  .rbc-time-gutter,
-  .rbc-time-header-gutter {
-    position: sticky;
-    left: 0;
-    background-color: white;
-    border-right: 1px solid @cell-border;
-    z-index: 10;
-    margin-right: -1px;
-  }
-
-  .rbc-time-header {
-    overflow: hidden;
-  }
-
-  .rbc-time-header-content {
-    min-width: auto;
-    flex: 1 0 0;
-    flex-basis: 0px;
-  }
-
-  .rbc-time-header-cell-single-day {
-    display: none;
-  }
-
-  .rbc-day-slot {
-    min-width: 140px;
-  }
-
-  .rbc-header,
-  .rbc-day-bg {
-    width: 140px;
-    // min-width: 0;
-    flex: 1 1 0;
-    flex-basis: 0 px;
-  }
-}
-
-.rbc-time-header-content + .rbc-time-header-content {
-  margin-left: -1px;
 }
 
 .rbc-time-slot {

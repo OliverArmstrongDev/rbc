@@ -1,20 +1,22 @@
 import PropTypes from 'prop-types'
-import clsx from 'clsx'
 import React from 'react'
 import EventRowMixin from './EventRowMixin'
 
 class EventRow extends React.Component {
+  static propTypes = {
+    segments: PropTypes.array,
+    ...EventRowMixin.propTypes,
+  }
+  static defaultProps = {
+    ...EventRowMixin.defaultProps,
+  }
   render() {
-    let {
-      segments,
-      slotMetrics: { slots },
-      className,
-    } = this.props
+    let { segments, slots } = this.props
 
     let lastEnd = 1
 
     return (
-      <div className={clsx(className, 'rbc-row')}>
+      <div className="rbc-row">
         {segments.reduce((row, { event, left, right, span }, li) => {
           let key = '_lvl_' + li
           let gap = left - lastEnd
@@ -32,15 +34,6 @@ class EventRow extends React.Component {
       </div>
     )
   }
-}
-
-EventRow.propTypes = {
-  segments: PropTypes.array,
-  ...EventRowMixin.propTypes,
-}
-
-EventRow.defaultProps = {
-  ...EventRowMixin.defaultProps,
 }
 
 export default EventRow

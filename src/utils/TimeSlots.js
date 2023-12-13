@@ -1,29 +1,24 @@
-const getDstOffset = (start, end) =>
-  start.getTimezoneOffset() - end.getTimezoneOffset()
+import dates from './dates'
 
-const getKey = ({ min, max, step, slots, localizer }) =>
-  `${+localizer.startOf(min, 'minutes')}` +
-  `${+localizer.startOf(max, 'minutes')}` +
+const getDstOffset = (start, end) =>
+  Math.abs(start.getTimezoneOffset() - end.getTimezoneOffset())
+
+const getKey = (min, max, step, slots) =>
+  `${+dates.startOf(min, 'minutes')}` +
+  `${+dates.startOf(max, 'minutes')}` +
   `${step}-${slots}`
 
-export function getSlotMetrics({
-  min: start,
-  max: end,
-  step,
-  timeslots,
-  localizer,
-}) {
-  const key = getKey({ start, end, step, timeslots, localizer })
+export function getSlotMetrics({ min: start, max: end, step, timeslots }) {
+  const key = getKey(start, end, step, timeslots)
 
-  // if the start is on a DST-changing day but *after* the moment of DST
-  // transition we need to add those extra minutes to our minutesFromMidnight
-  const daystart = localizer.startOf(start, 'day')
-  const daystartdstoffset = getDstOffset(daystart, start)
-  const totalMin =
-    1 + localizer.diff(start, end, 'minutes') + getDstOffset(start, end)
-  const minutesFromMidnight =
-    localizer.diff(daystart, start, 'minutes') + daystartdstoffset
-  const numGroups = Math.ceil((totalMin - 1) / (step * timeslots))
+  const totalMin = dates.diff(start, end, 'minutes') + getDstOffset(start, end)
+  const minutesFromMidnight = dates.diff(
+    dates.startOf(start, 'day'),
+    start,
+    'minutes'
+  )
+
+  const numGroups = Math.ceil(totalMin / (step * timeslots))
   const numSlots = numGroups * timeslots
 
   const groups = new Array(numGroups)
@@ -37,10 +32,14 @@ export function getSlotMetrics({
       const slotIdx = grp * timeslots + slot
       const minFromStart = slotIdx * step
       // A date with total minutes calculated from the start of the day
-      slots[slotIdx] = groups[grp][slot] = localizer.getSlotDate(
-        start,
-        minutesFromMidnight,
-        minFromStart
+      slots[slotIdx] = groups[grp][slot] = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate(),
+        0,
+        minutesFromMidnight + minFromStart,
+        0,
+        0
       )
     }
   }
@@ -48,12 +47,19 @@ export function getSlotMetrics({
   // Necessary to be able to select up until the last timeslot in a day
   const lastSlotMinFromStart = slots.length * step
   slots.push(
-    localizer.getSlotDate(start, minutesFromMidnight, lastSlotMinFromStart)
+    new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate(),
+      0,
+      minutesFromMidnight + lastSlotMinFromStart,
+      0,
+      0
+    )
   )
 
   function positionFromDate(date) {
-    const diff =
-      localizer.diff(start, date, 'minutes') + getDstOffset(start, date)
+    const diff = dates.diff(start, date, 'minutes') + getDstOffset(start, date)
     return Math.min(diff, totalMin)
   }
 
@@ -66,7 +72,7 @@ export function getSlotMetrics({
 
     dateIsInGroup(date, groupIndex) {
       const nextGroup = groups[groupIndex + 1]
-      return localizer.inRange(
+      return dates.inRange(
         date,
         groups[groupIndex][0],
         nextGroup ? nextGroup[0] : end,
@@ -77,7 +83,7 @@ export function getSlotMetrics({
     nextSlot(slot) {
       let next = slots[Math.min(slots.indexOf(slot) + 1, slots.length - 1)]
       // in the case of the last slot we won't a long enough range so manually get it
-      if (next === slot) next = localizer.add(slot, step, 'minutes')
+      if (next === slot) next = dates.add(slot, step, 'minutes')
       return next
     },
 
@@ -89,62 +95,28 @@ export function getSlotMetrics({
       return slots[slot]
     },
 
-    closestSlotFromPoint(point, boundaryRect) {
-      let range = Math.abs(boundaryRect.top - boundaryRect.bottom)
-      return this.closestSlotToPosition((point.y - boundaryRect.top) / range)
-    },
-
-    closestSlotFromDate(date, offset = 0) {
-      if (localizer.lt(date, start, 'minutes')) return slots[0]
-
-      const diffMins = localizer.diff(start, date, 'minutes')
-      return slots[(diffMins - (diffMins % step)) / step + offset]
-    },
-
-    startsBeforeDay(date) {
-      return localizer.lt(date, start, 'day')
-    },
-
-    startsAfterDay(date) {
-      return localizer.gt(date, end, 'day')
-    },
-
     startsBefore(date) {
-      return localizer.lt(localizer.merge(start, date), start, 'minutes')
+      return dates.lt(dates.merge(start, date), start, 'minutes')
     },
-
     startsAfter(date) {
-      return localizer.gt(localizer.merge(end, date), end, 'minutes')
+      return dates.gt(dates.merge(end, date), end, 'minutes')
     },
-
-    getRange(rangeStart, rangeEnd, ignoreMin, ignoreMax) {
-      if (!ignoreMin)
-        rangeStart = localizer.min(end, localizer.max(start, rangeStart))
-      if (!ignoreMax)
-        rangeEnd = localizer.min(end, localizer.max(start, rangeEnd))
+    getRange(rangeStart, rangeEnd) {
+      rangeStart = dates.min(end, dates.max(start, rangeStart))
+      rangeEnd = dates.min(end, dates.max(start, rangeEnd))
 
       const rangeStartMin = positionFromDate(rangeStart)
       const rangeEndMin = positionFromDate(rangeEnd)
-      const top =
-        rangeEndMin > step * numSlots && !localizer.eq(end, rangeEnd)
-          ? ((rangeStartMin - step) / (step * numSlots)) * 100
-          : (rangeStartMin / (step * numSlots)) * 100
+      const top = (rangeStartMin / totalMin) * 100
 
       return {
         top,
-        height: (rangeEndMin / (step * numSlots)) * 100 - top,
-        start: positionFromDate(rangeStart),
+        height: (rangeEndMin / totalMin) * 100 - top,
+        start: rangeStartMin,
         startDate: rangeStart,
-        end: positionFromDate(rangeEnd),
+        end: rangeEndMin,
         endDate: rangeEnd,
       }
-    },
-
-    getCurrentTimePosition(rangeStart) {
-      const rangeStartMin = positionFromDate(rangeStart)
-      const top = (rangeStartMin / (step * numSlots)) * 100
-
-      return top
     },
   }
 }

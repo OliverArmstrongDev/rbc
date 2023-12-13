@@ -1,25 +1,31 @@
-import dates from '../utils/dates'
-import { set } from '../formats'
-import { set as setLocalizer } from '../localizer'
+import dates from './utils/dates'
+
+function inSame12Hr(start, end) {
+  let s = 12 - dates.hours(start)
+  let e = 12 - dates.hours(end)
+  return (s <= 0 && e <= 0) || (s >= 0 && e >= 0)
+}
 
 let dateRangeFormat = ({ start, end }, culture, local) =>
   local.format(start, 'd', culture) + ' — ' + local.format(end, 'd', culture)
 
 let timeRangeFormat = ({ start, end }, culture, local) =>
-  local.format(start, 't', culture) + ' — ' + local.format(end, 't', culture)
+  local.format(start, 'h:mmtt', culture) +
+  ' — ' +
+  local.format(end, inSame12Hr(start, end) ? 'h:mm' : 'h:mmtt', culture)
 
 let timeRangeStartFormat = ({ start, end }, culture, local) =>
-  local.format(start, 't', culture) + ' — '
+  local.format(start, 'h:mmtt', culture) + ' — '
 
 let timeRangeEndFormat = ({ start, end }, culture, local) =>
-  ' — ' + local.format(end, 't', culture)
+  ' — ' + local.format(end, 'h:mmtt', culture)
 
 let weekRangeFormat = ({ start, end }, culture, local) =>
   local.format(start, 'MMM dd', culture) +
   ' - ' +
   local.format(end, dates.eq(start, end, 'month') ? 'dd' : 'MMM dd', culture)
 
-export let formats = {
+let formats = {
   dateFormat: 'dd',
   dayFormat: 'ddd dd/MM',
   weekdayFormat: 'ddd',
@@ -29,39 +35,27 @@ export let formats = {
   eventTimeRangeStartFormat: timeRangeStartFormat,
   eventTimeRangeEndFormat: timeRangeEndFormat,
 
-  timeGutterFormat: 't',
+  timeGutterFormat: 'h:mm tt',
 
-  monthHeaderFormat: 'Y',
+  monthHeaderFormat: 'MMMM yyyy',
   dayHeaderFormat: 'dddd MMM dd',
   dayRangeHeaderFormat: weekRangeFormat,
   agendaHeaderFormat: dateRangeFormat,
 
   agendaDateFormat: 'ddd MMM dd',
-  agendaTimeFormat: 't',
+  agendaTimeFormat: 'hh:mm tt',
   agendaTimeRangeFormat: timeRangeFormat,
 }
 
-export default function(globalize) {
-  function getCulture(culture) {
-    return culture ? globalize.findClosestCulture(culture) : globalize.culture()
+export function set(_formats) {
+  if (arguments.length > 1) _formats = { [_formats]: arguments[1] }
+
+  Object.assign(formats, _formats)
+}
+
+export default function format(fmts) {
+  return {
+    ...formats,
+    ...fmts,
   }
-
-  function firstOfWeek(culture) {
-    culture = getCulture(culture)
-    return (culture && culture.calendar.firstDay) || 0
-  }
-
-  set(formats)
-
-  return setLocalizer({
-    firstOfWeek,
-
-    parse(value, format, culture) {
-      return globalize.parseDate(value, format, culture)
-    },
-
-    format(value, format, culture) {
-      return globalize.format(value, format, culture)
-    },
-  })
 }

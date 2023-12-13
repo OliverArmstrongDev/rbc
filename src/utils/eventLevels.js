@@ -1,32 +1,30 @@
 import findIndex from 'lodash/findIndex'
-import { startOf, lte, neq, gt, gte, ceil, diff } from './dates'
+import dates from './dates'
+import { accessor as get } from './accessors'
 
-export function endOfRange({ dateRange, unit = 'day', localizer }) {
+export function endOfRange(dateRange, unit = 'day') {
   return {
     first: dateRange[0],
-    last: localizer.add(dateRange[dateRange.length - 1], 1, unit),
+    last: dates.add(dateRange[dateRange.length - 1], 1, unit),
   }
 }
 
-// properly calculating segments requires working with dates in
-// the timezone we're working with, so we use the localizer
-export function eventSegments(event, range, accessors, localizer) {
-  let { first, last } = endOfRange({ dateRange: range, localizer })
+export function eventSegments(
+  event,
+  first,
+  last,
+  { startAccessor, endAccessor },
+  range
+) {
+  let slots = dates.diff(first, last, 'day')
+  let start = dates.max(dates.startOf(get(event, startAccessor), 'day'), first)
+  let end = dates.min(dates.ceil(get(event, endAccessor), 'day'), last)
 
-  let slots = localizer.diff(first, last, 'day')
-  let start = localizer.max(
-    localizer.startOf(accessors.start(event), 'day'),
-    first
-  )
-  let end = localizer.min(localizer.ceil(accessors.end(event), 'day'), last)
-
-  let padding = findIndex(range, x => localizer.eq(x, start, 'day'))
-  let span = localizer.diff(start, end, 'day')
+  let padding = findIndex(range, x => dates.eq(x, start, 'day'))
+  let span = dates.diff(start, end, 'day')
 
   span = Math.min(span, slots)
-  // The segmentOffset is necessary when adjusting for timezones
-  // ahead of the browser timezone
-  span = Math.max(span - localizer.segmentOffset, 1)
+  span = Math.max(span, 1)
 
   return {
     event,
@@ -62,15 +60,15 @@ export function eventLevels(rowSegments, limit = Infinity) {
   return { levels, extra }
 }
 
-export function inRange(e, start, end, accessors) {
-  let eStart = startOf(accessors.start(e), 'day')
-  let eEnd = accessors.end(e)
+export function inRange(e, start, end, { startAccessor, endAccessor }) {
+  let eStart = dates.startOf(get(e, startAccessor), 'day')
+  let eEnd = get(e, endAccessor)
 
-  let startsBeforeEnd = lte(eStart, end, 'day')
+  let startsBeforeEnd = dates.lte(eStart, end, 'day')
   // when the event is zero duration we need to handle a bit differently
-  let endsAfterStart = neq(eStart, eEnd, 'minutes')
-    ? gt(eEnd, start, 'minutes')
-    : gte(eEnd, start, 'minutes')
+  let endsAfterStart = !dates.eq(eStart, eEnd, 'minutes')
+    ? dates.gt(eEnd, start, 'minutes')
+    : dates.gte(eEnd, start, 'minutes')
 
   return startsBeforeEnd && endsAfterStart
 }
@@ -81,28 +79,31 @@ export function segsOverlap(seg, otherSegs) {
   )
 }
 
-export function sortEvents(evtA, evtB, accessors) {
+export function sortEvents(
+  evtA,
+  evtB,
+  { startAccessor, endAccessor, allDayAccessor }
+) {
   let startSort =
-    +startOf(accessors.start(evtA), 'day') -
-    +startOf(accessors.start(evtB), 'day')
+    +dates.startOf(get(evtA, startAccessor), 'day') -
+    +dates.startOf(get(evtB, startAccessor), 'day')
 
-  let durA = diff(
-    accessors.start(evtA),
-    ceil(accessors.end(evtA), 'day'),
+  let durA = dates.diff(
+    get(evtA, startAccessor),
+    dates.ceil(get(evtA, endAccessor), 'day'),
     'day'
   )
 
-  let durB = diff(
-    accessors.start(evtB),
-    ceil(accessors.end(evtB), 'day'),
+  let durB = dates.diff(
+    get(evtB, startAccessor),
+    dates.ceil(get(evtB, endAccessor), 'day'),
     'day'
   )
 
   return (
     startSort || // sort by start Day first
     Math.max(durB, 1) - Math.max(durA, 1) || // events spanning multiple days go first
-    !!accessors.allDay(evtB) - !!accessors.allDay(evtA) || // then allDay single day events
-    +accessors.start(evtA) - +accessors.start(evtB) || // then sort by start time
-    +accessors.end(evtA) - +accessors.end(evtB) // then sort by end time
-  )
+    !!get(evtB, allDayAccessor) - !!get(evtA, allDayAccessor) || // then allDay single day events
+    +get(evtA, startAccessor) - +get(evtB, startAccessor)
+  ) // then sort by start time
 }

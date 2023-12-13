@@ -1,27 +1,5 @@
 import PropTypes from 'prop-types'
 import invariant from 'invariant'
-import {
-  merge,
-  inRange,
-  lt,
-  lte,
-  gt,
-  gte,
-  eq,
-  neq,
-  startOf,
-  endOf,
-  add,
-  range,
-  diff,
-  ceil,
-  min,
-  max,
-  firstVisibleDay,
-  lastVisibleDay,
-  visibleDays,
-  minutes,
-} from './utils/dates'
 
 const localePropType = PropTypes.oneOfType([PropTypes.string, PropTypes.func])
 
@@ -39,35 +17,15 @@ function _format(localizer, formatter, value, format, culture) {
   return result
 }
 
-/**
- * This date conversion was moved out of TimeSlots.js, to
- * allow for localizer override
- * @param {Date} dt - The date to start from
- * @param {Number} minutesFromMidnight
- * @param {Number} offset
- * @returns {Date}
- */
-function getSlotDate(dt, minutesFromMidnight, offset) {
-  return new Date(
-    dt.getFullYear(),
-    dt.getMonth(),
-    dt.getDate(),
-    0,
-    minutesFromMidnight + offset,
-    0,
-    0
-  )
-}
-
-function normalizeAllDay(evt) {
-  return evt
-}
-
-export class DateLocalizer {
+class DateLocalizer {
   constructor(spec) {
     invariant(
       typeof spec.format === 'function',
       'date localizer `format(..)` must be a function'
+    )
+    invariant(
+      typeof spec.parse === 'function',
+      'date localizer `parse(..)` must be a function'
     )
     invariant(
       typeof spec.firstOfWeek === 'function',
@@ -77,52 +35,58 @@ export class DateLocalizer {
     this.propType = spec.propType || localePropType
 
     this.formats = spec.formats
-    this.format = (...args) => _format(this, spec.format, ...args)
-    // These date arithmetic methods can be overriden by the localizer
     this.startOfWeek = spec.firstOfWeek
-    this.merge = spec.merge || merge
-    this.inRange = spec.inRange || inRange
-    this.lt = spec.lt || lt
-    this.lte = spec.lte || lte
-    this.gt = spec.gt || gt
-    this.gte = spec.gte || gte
-    this.eq = spec.eq || eq
-    this.neq = spec.neq || neq
-    this.startOf = spec.startOf || startOf
-    this.endOf = spec.endOf || endOf
-    this.add = spec.add || add
-    this.range = spec.range || range
-    this.diff = spec.diff || diff
-    this.ceil = spec.ceil || ceil
-    this.min = spec.min || min
-    this.max = spec.max || max
-    this.minutes = spec.minutes || minutes
-    this.firstVisibleDay = spec.firstVisibleDay || firstVisibleDay
-    this.lastVisibleDay = spec.lastVisibleDay || lastVisibleDay
-    this.visibleDays = spec.visibleDays || visibleDays
 
-    this.getSlotDate = spec.getSlotDate || getSlotDate
-    this.normalizeAllDay = spec.normalizeAllDay || normalizeAllDay
-    this.segmentOffset = spec.browserTZOffset ? spec.browserTZOffset() : 0
+    this.format = (...args) => _format(this, spec.format, ...args)
+
+    this.parse = (value, format, culture) => {
+      let result = spec.parse.call(this, value, format, culture)
+
+      invariant(
+        result == null || (result instanceof Date && !isNaN(result.getTime())),
+        'date localizer `parse(..)` must return a valid Date, null, or undefined'
+      )
+
+      return result
+    }
   }
 }
 
-export function mergeWithDefaults(
-  localizer,
-  culture,
-  formatOverrides,
-  messages
-) {
-  const formats = {
-    ...localizer.formats,
-    ...formatOverrides,
+let localizer = {
+  parse: error,
+  format: error,
+  startOfWeek: error,
+}
+
+export function set(newLocalizer) {
+  if (!newLocalizer.__isLocalizer__) {
+    newLocalizer = new DateLocalizer(newLocalizer)
+    newLocalizer.__isLocalizer__ = true
   }
 
-  return {
-    ...localizer,
-    messages,
-    startOfWeek: () => localizer.startOfWeek(culture),
-    format: (value, format) =>
-      localizer.format(value, formats[format] || format, culture),
-  }
+  localizer = newLocalizer
+  return localizer
+}
+
+let exp = {
+  parse(...args) {
+    return localizer.parse(...args)
+  },
+
+  format(...args) {
+    return localizer.format(...args)
+  },
+
+  startOfWeek(...args) {
+    return localizer.startOfWeek(...args)
+  },
+}
+
+export default exp
+
+function error() {
+  throw new Error(
+    'You have not selected a localization strategy for Big Calendar. ' +
+      'Please use either of the two included.'
+  )
 }

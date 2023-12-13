@@ -1,3 +1,9 @@
-import NoopWrapper from './NoopWrapper'
+import React from 'react'
 
-export default NoopWrapper
+class EventWrapper extends React.Component {
+  render() {
+    return this.props.children
+  }
+}
+
+export default EventWrapper
